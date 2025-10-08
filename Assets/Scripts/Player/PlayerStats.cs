@@ -6,9 +6,9 @@ public class PlayerStats : MonoBehaviour
 
     [Header("Base Stats")]
     public int level = 1;
-    public int maxHealth = 100;
-    public int currentHealth;
-    public int attackDamage = 10;
+    public float maxHealth = 100f;
+    public float currentHealth;
+    public float attackDamage = 10f;
     public float moveSpeed = 5f;
     public float attackSpeed = 1f;
 
@@ -26,7 +26,7 @@ public class PlayerStats : MonoBehaviour
     }
 
     // CAN SÝSTEMÝ-----------------------
-    public void TakeDamage(int damage)
+    public void TakeDamage(float damage)
     {
         currentHealth -= damage;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
