@@ -1379,7 +1379,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8910235138230427156, guid: b7c531ddae54c3344a06ff031075d396, type: 3}
       propertyPath: m_ApplyRootMotion
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -9994,6 +9994,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1019460776280464994, guid: 71fda3ed8a0bccd4290a67fca6f19391, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6020791896868757154, guid: 71fda3ed8a0bccd4290a67fca6f19391, type: 3}
       propertyPath: m_Name
       value: 1Enemy
@@ -13145,6 +13149,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 4108899395350058004, guid: c0a9a61c2c0b8134ba0df803b6d6f425, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7254808905042482388, guid: c0a9a61c2c0b8134ba0df803b6d6f425, type: 3}
       propertyPath: m_Name
       value: 5Enemy
@@ -13217,7 +13225,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2281220974400469022, guid: 4d23f022b7ea4d04b89018c1a67067e2, type: 3}
       propertyPath: m_ApplyRootMotion
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4756779891414989022, guid: 4d23f022b7ea4d04b89018c1a67067e2, type: 3}
       propertyPath: m_Name
@@ -13299,7 +13307,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1645394305698985891, guid: f1867e1e94010cf4bb16fe1be0bbef2b, type: 3}
       propertyPath: m_ApplyRootMotion
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6214142052018983765, guid: f1867e1e94010cf4bb16fe1be0bbef2b, type: 3}
       propertyPath: m_Name

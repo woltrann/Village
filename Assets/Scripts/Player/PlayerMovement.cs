@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -19,26 +20,33 @@ public class PlayerMovement : MonoBehaviour
     private Animator anim;
 
     private bool isAttacking = false;
-    private Transform enemyTarget; // kilitlenilen düşman
+
+    // En yakındaki düşmanı takip etmek için liste
+    private List<Transform> enemiesInRange = new List<Transform>();
+    private Transform enemyTarget; // O anki hedef düşman
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true; // Dönme sorunlarını engelle
-        healthBarFixedRotation = healthBarCanvas.rotation; // Can barını başlangıç rotasyonunu kaydet
-        anim = GetComponent<Animator>();   // Animator referansı al
+        rb.freezeRotation = true;
+        anim = GetComponent<Animator>();
+
+        if (healthBarCanvas != null)
+            healthBarFixedRotation = healthBarCanvas.rotation;
     }
 
     void FixedUpdate()
     {
+        UpdateEnemyTarget(); // En yakındaki düşmanı sürekli kontrol et
         Move();
         CameraFollow();
-
     }
 
     void LateUpdate()
     {
-        healthBarCanvas.rotation = healthBarFixedRotation;
+        // Can barı hep sabit kalsın
+        if (healthBarCanvas != null)
+            healthBarCanvas.rotation = healthBarFixedRotation;
     }
 
     void Move()
@@ -46,79 +54,88 @@ public class PlayerMovement : MonoBehaviour
         // Joystick değerlerini al
         float horizontal = joystick.Horizontal;
         float vertical = joystick.Vertical;
-
-        // Hareket yönü
         moveDirection = new Vector3(horizontal, 0f, vertical).normalized;
 
         // Rigidbody ile hareket
         rb.MovePosition(transform.position + moveDirection * moveSpeed * Time.fixedDeltaTime);
 
-        // Animator için kontrol
-        if (anim != null)
-        {
-            bool isMoving = moveDirection != Vector3.zero;
-            anim.SetBool("isWalk", isMoving);
-        }
+        // Animator kontrolü
+        bool isMoving = moveDirection != Vector3.zero;
+        anim.SetBool("isWalk", isMoving);
 
-        // Eğer düşman yoksa joystick yönüne dön
-        if (enemyTarget == null && moveDirection != Vector3.zero)
+        // Eğer düşman varsa ona bak
+        if (enemyTarget != null)
+        {
+            Vector3 dirToEnemy = (enemyTarget.position - transform.position).normalized;
+            dirToEnemy.y = 0;
+            Quaternion lookRotation = Quaternion.LookRotation(dirToEnemy);
+            rb.rotation = Quaternion.Slerp(rb.rotation, lookRotation, 0.2f);
+        }
+        // Düşman yoksa joystick yönüne bak
+        else if (moveDirection != Vector3.zero)
         {
             Quaternion toRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
             rb.rotation = Quaternion.Slerp(rb.rotation, toRotation, 0.2f);
-        }
-        // Eğer düşman varsa ona bak
-        else if (enemyTarget != null)
-        {
-            Vector3 dirToEnemy = (enemyTarget.position - transform.position).normalized;
-            dirToEnemy.y = 0; // sadece yatay eksende dönsün
-            Quaternion lookRotation = Quaternion.LookRotation(dirToEnemy);
-            rb.rotation = Quaternion.Slerp(rb.rotation, lookRotation, 0.2f);
         }
     }
 
     void CameraFollow()
     {
         if (cameraTransform != null)
-        {
-            // Kamera, karakterin konumuna offset eklenerek yerleştirilir
             cameraTransform.position = transform.position + cameraOffset;
-            // Rotasyonu değiştirmiyoruz → kamera hep aynı bakış açısında kalıyor
-        }
     }
 
-    // Enemy alana girince tetiklenir
+    // En yakındaki düşmanı bulur
+    void UpdateEnemyTarget()
+    {
+        if (enemiesInRange.Count == 0)
+        {
+            enemyTarget = null;
+            return;
+        }
+
+        float closestDist = Mathf.Infinity;
+        Transform closestEnemy = null;
+
+        foreach (Transform enemy in enemiesInRange)
+        {
+            if (enemy == null) continue;
+
+            float dist = Vector3.Distance(transform.position, enemy.position);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestEnemy = enemy;
+            }
+        }
+
+        enemyTarget = closestEnemy;
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Enemy"))
         {
-            if (!isAttacking)
-            {
-                isAttacking = true;
-                anim.SetBool("Attack", true);
+            if (!enemiesInRange.Contains(other.transform))
+                enemiesInRange.Add(other.transform);
 
-                enemyTarget = other.transform; // düşmanı kaydet
-            }
+            anim.SetBool("Attack", true);
+            isAttacking = true;
         }
     }
 
-    private void OnTriggerStay(Collider other)
-    {
-        // Sürekli düşmana bakması için target güncel kalır
-        if (other.CompareTag("Enemy"))
-        {
-            enemyTarget = other.transform;
-        }
-    }
-
-    // Enemy alandan çıkarsa saldırı biter
     private void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("Enemy"))
         {
-            isAttacking = false;
-            anim.SetBool("Attack", false);
+            enemiesInRange.Remove(other.transform);
 
-            enemyTarget = null; // düşman kaydı sıfırlanır
+            // Eğer alanda hiç düşman kalmadıysa saldırıyı kapat
+            if (enemiesInRange.Count == 0)
+            {
+                isAttacking = false;
+                anim.SetBool("Attack", false);
+            }
         }
     }
 }
