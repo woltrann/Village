@@ -1,117 +1,163 @@
-using UnityEngine;
-using System.Collections;
+ï»¿using UnityEngine;
+using UnityEngine.UI;
 
 public class EnemyManager : MonoBehaviour
 {
-    [Header("Stats")]
-    public float maxHealth = 100f;
-    private float currentHealth;
-    public float damage = 10f;
-    public float attackSpeed = 1f;
-    public float moveSpeed = 3f;
-    public float attackRange = 1.5f;
+    public static EnemyManager Instance;
 
     [Header("References")]
-    public Animator anim;
-    public Transform target; // Oyuncu (Player)
-    public UnityEngine.AI.NavMeshAgent agent;
+    public Transform player;
+    public Animator animator;
+    public Rigidbody rb;
 
-    private bool isDead = false;
+    [Header("Settings")]
+    public float moveSpeed = 3f;
+    public float rotationSpeed = 5f;
+    public float attackDamage = 10f; // Player'a vereceÄŸi hasar
+
+    public float maxHealth = 50f;     // DÃ¼ÅŸman canÄ±
+    public float currentHealth;
+
+    [Header("Health Bar")]
+    public Slider healthBar;
+    public Transform healthBarCanvas;
+    private Quaternion healthBarFixedRotation;
+
+    private bool isWalking = true;
     private bool isAttacking = false;
+    private bool isDead = false;
 
-    void Start()
+
+    private void Awake()
     {
+        Instance = this;
         currentHealth = maxHealth;
+        if (healthBar != null)
+        {
+            healthBar.maxValue = maxHealth;
+            healthBar.value = currentHealth;
+        }
 
-        if (anim == null)
-            anim = GetComponent<Animator>();
+        if (healthBarCanvas != null)
+            healthBarFixedRotation = healthBarCanvas.rotation;
+    }
 
-        if (agent == null)
-            agent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-
-        agent.speed = moveSpeed;
+    private void Start()
+    {
+        if (player == null)
+            player = GameObject.FindGameObjectWithTag("Player").transform;
     }
 
     void Update()
     {
-        if (isDead || target == null)
-            return;
-
-        float distance = Vector3.Distance(transform.position, target.position);
-
-        if (distance <= attackRange)
+        if (PlayerStats.Instance.currentHealth > 0)
         {
-            if (!isAttacking)
-                StartCoroutine(AttackRoutine());
+            if (isDead || player == null) return;
+
+            // DÃ¼ÅŸman trigger iÃ§indeyse saldÄ±r, deÄŸilse yÃ¼rÃ¼
+            if (isWalking)
+            {
+                Vector3 moveDirection = (player.position - transform.position).normalized;
+                moveDirection.y = 0;
+
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+
+                animator.SetBool("isWalk", true);
+                animator.SetBool("isAttacking", false);
+            }
+            else if (isAttacking)
+            {
+                Vector3 moveDirection = (player.position - transform.position).normalized;
+                moveDirection.y = 0;
+
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+
+                animator.SetBool("isWalk", false);
+                animator.SetBool("isAttacking", true);
+
+            }
         }
         else
         {
-            MoveTowardsPlayer();
+            animator.SetBool("isWalk", false);
+            animator.SetBool("isAttacking", false);
+            animator.SetTrigger("Exit");
+
         }
+        
     }
 
-    void MoveTowardsPlayer()
+    void FixedUpdate()
     {
-        if (isAttacking) return;
-
-        anim.SetBool("isWalk", true);
-        anim.SetBool("isAttack", false);
-        agent.isStopped = false;
-        agent.SetDestination(target.position);
-    }
-
-    IEnumerator AttackRoutine()
-    {
-        isAttacking = true;
-        agent.isStopped = true;
-        anim.SetBool("isWalk", false);
-        anim.SetBool("isAttack", true);
-
-        // hasar zamaný (animasyona göre ayarlayabilirsin)
-        yield return new WaitForSeconds(0.4f);
-
-        if (target != null && !isDead)
+        if (isWalking)
         {
-            // Oyuncuya hasar ver
-            PlayerStats playerStats = target.GetComponent<PlayerStats>();
-            if (playerStats != null)
-                playerStats.TakeDamage(damage);
+            Vector3 moveDirection = (player.position - transform.position).normalized;
+            moveDirection.y = 0;
+            Vector3 newPos = rb.position + moveDirection * moveSpeed * Time.fixedDeltaTime;
+            newPos.y = rb.position.y;
+            rb.MovePosition(newPos);
         }
-
-        // Saldýrý gecikmesi
-        yield return new WaitForSeconds(attackSpeed);
-        isAttacking = false;
     }
 
-    public void TakeDamage(float amount)
+    void LateUpdate()
+    {
+        if (healthBarCanvas != null)
+            healthBarCanvas.rotation = healthBarFixedRotation;
+    }
+
+    // DÃ¼ÅŸman trigger
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isWalking = false;
+            isAttacking = true;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isWalking = true;
+            isAttacking = false;
+        }
+    }
+    //  Animasyon eventinden Ã§aÄŸrÄ±lacak
+    public void DealDamageToPlayer()
     {
         if (isDead) return;
+        if (PlayerStats.Instance.currentHealth <= 0) return;
 
-        currentHealth -= amount;
 
-        // Hasar animasyonu (isteðe baðlý)
-        anim.SetTrigger("Hit");
+        PlayerStats.Instance.TakeDamage(attackDamage);
+        
+    }
+
+    // Player saldÄ±rÄ±sÄ± animasyon eventinden Ã§aÄŸrÄ±lacak
+    public void TakeDamage(float damage)
+    {
+        currentHealth -= damage;
+        if (healthBar != null) healthBar.value = currentHealth;
 
         if (currentHealth <= 0)
+        {
             Die();
+        }
     }
 
     void Die()
     {
-        isDead = true;
-        anim.SetBool("isWalk", false);
-        anim.SetBool("isAttack", false);
-        anim.SetBool("isDie", true);
-        agent.isStopped = true;
+        PlayerMovement player = Object.FindAnyObjectByType<PlayerMovement>();
+        if (player != null)
+            player.RemoveEnemyFromList(this);
 
-        // Öldükten kýsa süre sonra yok et (ya da pool’a geri gönder)
-        Destroy(gameObject, 1f);
-    }
-
-    // Dilersen debug/test amaçlý hasar denemesi:
-    [ContextMenu("TestDamage")]
-    void TestDamage()
-    {
-        TakeDamage(25f);
+        animator.SetTrigger("isDead");
+        rb.isKinematic = true;
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+        Destroy(gameObject, 2f);
     }
 }

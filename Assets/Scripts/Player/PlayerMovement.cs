@@ -1,126 +1,165 @@
-﻿using UnityEngine;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement Settings")]
-    public float moveSpeed = 5f;           // Karakterin hızı
-    public FloatingJoystick joystick;      // Joystick referansı (Unity'de atanacak)
+    public static PlayerMovement Instance;
 
-    [Header("Camera Settings")]
-    public Transform cameraTransform;      // Takip edecek kamera
-    public Vector3 cameraOffset = new Vector3(0, 10f, -8f); // Kameranın konumu (yükseklik, uzaklık)
+    [Header("References")]
+    public FloatingJoystick joystick;
+    public Animator animator;
+    public Rigidbody rb;
+
+    [Header("Settings")]
+    public float moveSpeed = 5f;
+    public float rotationSpeed = 10f;
+    public float attackDamage = 10f;
+    public float attackInterval = 1f;
 
     [Header("Health Bar Settings")]
-    private Quaternion healthBarFixedRotation; // Can barının sabit rotasyonu
-    public Transform healthBarCanvas;      // Karakterin içindeki can barı (Canvas)
+    public Transform healthBarCanvas;
+    private Quaternion healthBarFixedRotation;
 
-    private Rigidbody rb;
+    [Header("Camera Follow")]
+    public Transform cameraTransform; // Kamerayı buraya atayacağız
+    public Vector3 cameraOffset = new Vector3(0, 10f, -8f);
+    private Quaternion cameraFixedRotation;
+
     private Vector3 moveDirection;
-    private Animator anim;
+    private float attackTimer = 0f;
 
-    private bool isAttacking = false;
+    // Saldırı ve düşmanlar
+    public bool IsAttacking = false;
+    private List<EnemyManager> enemiesInRange = new List<EnemyManager>();
+    private EnemyManager nearestEnemy;
 
-    // En yakındaki düşmanı takip etmek için liste
-    private List<Transform> enemiesInRange = new List<Transform>();
-    private Transform enemyTarget; // O anki hedef düşman
-
-    void Awake()
+    private void Awake()
     {
-        rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true;
-        anim = GetComponent<Animator>();
+        Instance = this;
 
         if (healthBarCanvas != null)
             healthBarFixedRotation = healthBarCanvas.rotation;
+
+        // Kameranın ilk rotasyonunu kaydet
+        if (cameraTransform != null)
+            cameraFixedRotation = cameraTransform.rotation;
+    }
+
+    void Update()
+    {
+        if (PlayerStats.Instance.currentHealth <= 0) return;
+
+        // ----------------- Hareket -----------------
+        float horizontal = joystick.Horizontal;
+        float vertical = joystick.Vertical;
+        moveDirection = new Vector3(horizontal, 0, vertical).normalized;
+
+        float speed = moveDirection.magnitude;
+        animator.SetFloat("Speed", speed);
+
+        // ----------------- En yakın düşmana yönelme -----------------
+        if (enemiesInRange.Count > 0)
+        {
+            nearestEnemy = GetNearestEnemy();
+
+            if (nearestEnemy != null)
+            {
+                // Yönünü düşmana çevir
+                Vector3 direction = (nearestEnemy.transform.position - transform.position).normalized;
+                direction.y = 0;
+                if (direction != Vector3.zero)
+                {
+                    Quaternion lookRotation = Quaternion.LookRotation(direction);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, rotationSpeed * Time.deltaTime);
+                }
+
+                // Saldırı animasyonu aktif
+                animator.SetBool("isAttacking", true);
+                IsAttacking = true;
+            }
+        }
+        else
+        {
+            // Düşman yok → joystick yönüne bak
+            IsAttacking = false;
+            nearestEnemy = null;
+            attackTimer = 0f;
+            animator.SetBool("isAttacking", false);
+
+            if (moveDirection.magnitude >= 0.1f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            }
+        }
+
+        // ----------------- Kamera Takibi -----------------
+        if (cameraTransform != null)
+        {
+            // Kamerayı direkt karakter pozisyonuna taşı
+            cameraTransform.position = transform.position + cameraOffset;
+
+            // Kameranın rotasyonu sabit kalsın
+            cameraTransform.rotation = cameraFixedRotation;
+        }
     }
 
     void FixedUpdate()
     {
-        UpdateEnemyTarget(); // En yakındaki düşmanı sürekli kontrol et
-        Move();
-        CameraFollow();
+        rb.MovePosition(rb.position + moveDirection * moveSpeed * Time.fixedDeltaTime);
     }
 
     void LateUpdate()
     {
-        // Can barı hep sabit kalsın
         if (healthBarCanvas != null)
             healthBarCanvas.rotation = healthBarFixedRotation;
     }
 
-    void Move()
+    // ----------------- Hasar verme -----------------
+    public void DealDamage()
     {
-        // Joystick değerlerini al
-        float horizontal = joystick.Horizontal;
-        float vertical = joystick.Vertical;
-        moveDirection = new Vector3(horizontal, 0f, vertical).normalized;
-
-        // Rigidbody ile hareket
-        rb.MovePosition(transform.position + moveDirection * moveSpeed * Time.fixedDeltaTime);
-
-        // Animator kontrolü
-        bool isMoving = moveDirection != Vector3.zero;
-        anim.SetBool("isWalk", isMoving);
-
-        // Eğer düşman varsa ona bak
-        if (enemyTarget != null)
+        if (PlayerStats.Instance.currentHealth <= 0) return;
+        if (nearestEnemy != null)
         {
-            Vector3 dirToEnemy = (enemyTarget.position - transform.position).normalized;
-            dirToEnemy.y = 0;
-            Quaternion lookRotation = Quaternion.LookRotation(dirToEnemy);
-            rb.rotation = Quaternion.Slerp(rb.rotation, lookRotation, 0.2f);
-        }
-        // Düşman yoksa joystick yönüne bak
-        else if (moveDirection != Vector3.zero)
-        {
-            Quaternion toRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
-            rb.rotation = Quaternion.Slerp(rb.rotation, toRotation, 0.2f);
+            nearestEnemy.TakeDamage(attackDamage);
         }
     }
 
-    void CameraFollow()
+    // ----------------- En yakın düşmanı bul -----------------
+    private EnemyManager GetNearestEnemy()
     {
-        if (cameraTransform != null)
-            cameraTransform.position = transform.position + cameraOffset;
-    }
+        enemiesInRange.RemoveAll(e => e == null);
 
-    // En yakındaki düşmanı bulur
-    void UpdateEnemyTarget()
-    {
-        if (enemiesInRange.Count == 0)
+        EnemyManager nearest = null;
+        float minDist = Mathf.Infinity;
+
+        foreach (EnemyManager e in enemiesInRange)
         {
-            enemyTarget = null;
-            return;
-        }
-
-        float closestDist = Mathf.Infinity;
-        Transform closestEnemy = null;
-
-        foreach (Transform enemy in enemiesInRange)
-        {
-            if (enemy == null) continue;
-
-            float dist = Vector3.Distance(transform.position, enemy.position);
-            if (dist < closestDist)
+            if (e == null) continue;
+            float dist = Vector3.Distance(transform.position, e.transform.position);
+            if (dist < minDist)
             {
-                closestDist = dist;
-                closestEnemy = enemy;
+                minDist = dist;
+                nearest = e;
             }
         }
-
-        enemyTarget = closestEnemy;
+        return nearest;
     }
 
+    public void RemoveEnemyFromList(EnemyManager enemy)
+    {
+        if (enemiesInRange.Contains(enemy))
+            enemiesInRange.Remove(enemy);
+    }
+
+    // ----------------- Trigger ile temas -----------------
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Enemy"))
         {
-            if (!enemiesInRange.Contains(other.transform))
-                enemiesInRange.Add(other.transform);
-
-            anim.SetBool("Attack", true);
-            isAttacking = true;
+            EnemyManager enemy = other.GetComponent<EnemyManager>();
+            if (enemy != null && !enemiesInRange.Contains(enemy))
+                enemiesInRange.Add(enemy);
         }
     }
 
@@ -128,14 +167,9 @@ public class PlayerMovement : MonoBehaviour
     {
         if (other.CompareTag("Enemy"))
         {
-            enemiesInRange.Remove(other.transform);
-
-            // Eğer alanda hiç düşman kalmadıysa saldırıyı kapat
-            if (enemiesInRange.Count == 0)
-            {
-                isAttacking = false;
-                anim.SetBool("Attack", false);
-            }
+            EnemyManager enemy = other.GetComponent<EnemyManager>();
+            if (enemy != null && enemiesInRange.Contains(enemy))
+                enemiesInRange.Remove(enemy);
         }
     }
 }

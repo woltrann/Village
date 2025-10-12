@@ -1,13 +1,17 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance;
+    public Animator animator;
+    public bool isDead=false;
 
     [Header("Base Stats")]
     public int level = 1;
     public float maxHealth = 100f;
     public float currentHealth;
+    public Slider healthBar;
     public float attackDamage = 10f;
     public float moveSpeed = 5f;
     public float attackSpeed = 1f;
@@ -22,7 +26,9 @@ public class PlayerStats : MonoBehaviour
     private void Awake()
     {
         Instance = this;
-        currentHealth = maxHealth;        
+        currentHealth = maxHealth;
+        healthBar.maxValue = maxHealth;
+        healthBar.value = currentHealth ;
     }
 
     // CAN SÝSTEMÝ-----------------------
@@ -30,7 +36,7 @@ public class PlayerStats : MonoBehaviour
     {
         currentHealth -= damage;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-
+        healthBar.value = currentHealth ; 
         if (currentHealth <= 0)
         {
             Die();
@@ -45,7 +51,8 @@ public class PlayerStats : MonoBehaviour
 
     void Die()
     {
-        Debug.Log("Player öldü!"); 
+        animator.SetBool("isAttacking", false);
+        animator.SetTrigger("isDead"); 
     }
 
     
