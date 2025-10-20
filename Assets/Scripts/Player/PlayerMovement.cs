@@ -106,6 +106,8 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (PlayerStats.Instance.isDead) return; //  Ölüyse hareket etme
+
         rb.MovePosition(rb.position + moveDirection * moveSpeed * Time.fixedDeltaTime);
     }
 

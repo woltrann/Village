@@ -686,8 +686,9 @@ MonoBehaviour:
   rb: {fileID: 2461984471048668446}
   moveSpeed: 3
   rotationSpeed: 5
-  attackDamage: 10
-  maxHealth: 400
-  currentHealth: 0
+  attackDamage: 5
+  maxHealth: 10
+  takeGold: 12
+  takeExp: 20
   healthBar: {fileID: 2165845807968387565}
   healthBarCanvas: {fileID: 7108505189398516052}

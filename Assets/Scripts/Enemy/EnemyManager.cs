@@ -3,20 +3,26 @@ using UnityEngine.UI;
 
 public class EnemyManager : MonoBehaviour
 {
-    public static EnemyManager Instance;
+    public event System.Action<EnemyManager> OnEnemyDied;
 
     [Header("References")]
     public Transform player;
+    public Transform mainTarget; // Ana kule
     public Animator animator;
     public Rigidbody rb;
 
     [Header("Settings")]
     public float moveSpeed = 3f;
     public float rotationSpeed = 5f;
-    public float attackDamage = 10f; // Player'a vereceği hasar
+    public float attackDamage = 10f;
+    public float detectionRadius = 8f; // 🔥 Oyuncuyu algılama yarıçapı
+    public float attackRange = 2f;     // 🔥 Saldırı mesafesi
 
-    public float maxHealth = 50f;     // Düşman canı
-    public float currentHealth;
+    public float maxHealth = 50f;
+    private float currentHealth;
+
+    public int takeGold;
+    public int takeExp;
 
     [Header("Health Bar")]
     public Slider healthBar;
@@ -27,10 +33,10 @@ public class EnemyManager : MonoBehaviour
     private bool isAttacking = false;
     private bool isDead = false;
 
+    private Transform currentTarget; // 🔥 Anlık hedef (player veya kule)
 
     private void Awake()
     {
-        Instance = this;
         currentHealth = maxHealth;
         if (healthBar != null)
         {
@@ -45,59 +51,57 @@ public class EnemyManager : MonoBehaviour
     private void Start()
     {
         if (player == null)
-            player = GameObject.FindGameObjectWithTag("Player").transform;
+            player = GameObject.FindGameObjectWithTag("Player")?.transform;
+
+        if (mainTarget == null)
+            mainTarget = GameObject.FindGameObjectWithTag("Main")?.transform;
+
+        currentTarget = mainTarget; // 🔥 Başlangıçta kuleye yönel
     }
 
     void Update()
     {
-        if (PlayerStats.Instance.currentHealth > 0)
+        if (isDead || currentTarget == null) return;
+
+        // 🔥 Önce oyuncunun menzilde olup olmadığını kontrol et
+        float playerDist = Vector3.Distance(transform.position, player.position);
+        if (playerDist <= detectionRadius)
+            currentTarget = player; // Oyuncuya yönel
+        else
+            currentTarget = mainTarget; // Kuleye dön
+
+        // 🔥 Hedefe doğru hareket et veya saldır
+        float distToTarget = Vector3.Distance(transform.position, currentTarget.position);
+        if (distToTarget > attackRange)
         {
-            if (isDead || player == null) return;
-
-            // Düşman trigger içindeyse saldır, değilse yürü
-            if (isWalking)
-            {
-                Vector3 moveDirection = (player.position - transform.position).normalized;
-                moveDirection.y = 0;
-
-                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
-
-                animator.SetBool("isWalk", true);
-                animator.SetBool("isAttacking", false);
-            }
-            else if (isAttacking)
-            {
-                Vector3 moveDirection = (player.position - transform.position).normalized;
-                moveDirection.y = 0;
-
-                Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
-
-                animator.SetBool("isWalk", false);
-                animator.SetBool("isAttacking", true);
-
-            }
+            isWalking = true;
+            isAttacking = false;
         }
         else
         {
-            animator.SetBool("isWalk", false);
-            animator.SetBool("isAttacking", false);
-            animator.SetTrigger("Exit");
-
+            isWalking = false;
+            isAttacking = true;
         }
-        
+
+        // 🔥 Animasyon kontrolü
+        animator.SetBool("isWalk", isWalking);
+        animator.SetBool("isAttacking", isAttacking);
     }
 
     void FixedUpdate()
     {
-        if (isWalking)
+        if (isDead) return;
+
+        if (isWalking && currentTarget != null)
         {
-            Vector3 moveDirection = (player.position - transform.position).normalized;
-            moveDirection.y = 0;
-            Vector3 newPos = rb.position + moveDirection * moveSpeed * Time.fixedDeltaTime;
-            newPos.y = rb.position.y;
-            rb.MovePosition(newPos);
+            Vector3 dir = (currentTarget.position - transform.position).normalized;
+            dir.y = 0;
+            rb.MovePosition(rb.position + dir * moveSpeed * Time.fixedDeltaTime);
+            FaceTarget();
+        }
+        else if (isAttacking && currentTarget != null)
+        {
+            FaceTarget();
         }
     }
 
@@ -107,40 +111,38 @@ public class EnemyManager : MonoBehaviour
             healthBarCanvas.rotation = healthBarFixedRotation;
     }
 
-    // Düşman trigger
-    private void OnTriggerEnter(Collider other)
+    private void FaceTarget()
     {
-        if (other.CompareTag("Player"))
-        {
-            isWalking = false;
-            isAttacking = true;
-        }
+        Vector3 dir = (currentTarget.position - transform.position).normalized;
+        dir.y = 0;
+        Quaternion targetRot = Quaternion.LookRotation(dir);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * rotationSpeed);
     }
 
-    private void OnTriggerExit(Collider other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            isWalking = true;
-            isAttacking = false;
-        }
-    }
-    //  Animasyon eventinden çağrılacak
     public void DealDamageToPlayer()
     {
         if (isDead) return;
-        if (PlayerStats.Instance.currentHealth <= 0) return;
 
-
-        PlayerStats.Instance.TakeDamage(attackDamage);
-        
+        // 🔥 Eğer hedef kuleyse ona zarar verme, oyuncuya zarar ver
+        if (currentTarget.CompareTag("Player"))
+        {
+            if (PlayerStats.Instance.currentHealth > 0)
+                PlayerStats.Instance.TakeDamage(attackDamage);
+        }
+        else if (currentTarget.CompareTag("Main"))
+        {
+            if (BaseManager.Instance.currentHealth > 0)
+                BaseManager.Instance.TakeDamage(attackDamage);
+        }
     }
 
-    // Player saldırısı animasyon eventinden çağrılacak
     public void TakeDamage(float damage)
     {
+        if (isDead) return;
+
         currentHealth -= damage;
-        if (healthBar != null) healthBar.value = currentHealth;
+        if (healthBar != null)
+            healthBar.value = currentHealth;
 
         if (currentHealth <= 0)
         {
@@ -150,14 +152,24 @@ public class EnemyManager : MonoBehaviour
 
     void Die()
     {
-        PlayerMovement player = Object.FindAnyObjectByType<PlayerMovement>();
-        if (player != null)
-            player.RemoveEnemyFromList(this);
+        if (isDead) return;
+        isDead = true;
 
         animator.SetTrigger("isDead");
         rb.isKinematic = true;
-        Collider col = GetComponent<Collider>();
-        if (col != null) col.enabled = false;
+
+        Collider[] colliders = GetComponents<Collider>();
+        foreach (Collider col in colliders)
+            col.enabled = false;
+
+        if (PlayerMovement.Instance != null)
+            PlayerMovement.Instance.RemoveEnemyFromList(this);
+
+        OnEnemyDied?.Invoke(this);
+
+        PlayerStats.Instance.AddGold(takeGold);
+        PlayerStats.Instance.GainExp(takeExp);
+
         Destroy(gameObject, 2f);
     }
 }

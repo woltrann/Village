@@ -677,13 +677,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   player: {fileID: 0}
-  animator: {fileID: 0}
-  rb: {fileID: 0}
+  animator: {fileID: 1645394305698985891}
+  rb: {fileID: 723817432009357000}
   moveSpeed: 3
   rotationSpeed: 5
-  attackDamage: 10
+  attackDamage: 100
   maxHealth: 100
-  currentHealth: 0
+  takeGold: 0
+  takeExp: 0
   healthBar: {fileID: 1268712465111440105}
   healthBarCanvas: {fileID: 1546160489458333599}
 --- !u!4 &6734783499801774575 stripped
