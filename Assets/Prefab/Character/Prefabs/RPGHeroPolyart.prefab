@@ -2275,7 +2275,14 @@ MonoBehaviour:
   attackSpeed: 1
   currentExp: 0
   expToNextLevel: 100
+  totalExpGained: 0
+  expText: {fileID: 0}
+  currentLevelText: {fileID: 0}
   gold: 0
+  goldText: {fileID: 0}
+  endPanel: {fileID: 0}
+  totalExpText: {fileID: 0}
+  totalExpSlider: {fileID: 0}
 --- !u!1 &1907504620384056
 GameObject:
   m_ObjectHideFlags: 0
